@@ -1,0 +1,6 @@
+# Copy to .dev.vars and fill in. `.dev.vars` is gitignored.
+# Generate a strong JWT_SECRET with: openssl rand -hex 32
+JWT_SECRET=replace-with-64-hex-chars
+# Optional: override the default cookie name/domain
+COOKIE_NAME=vm_session
+COOKIE_DOMAIN=
