@@ -130,17 +130,65 @@ What's covered:
 
 ## Deployment
 
+### Manual (one-time bootstrap)
+
 ```bash
 cd apps/api
 pnpm dlx wrangler secret put JWT_SECRET
 pnpm db:migrate:remote
-pnpm deploy
+pnpm exec wrangler deploy
 
 # For the web app: point it at your Worker's URL and deploy to Pages, Workers
 # Sites, or any static host. The Vite build output lives in apps/web/dist.
 cd apps/web
-pnpm build
+VITE_API_BASE=https://voter-match-api.<subdomain>.workers.dev/api pnpm build
+pnpm dlx wrangler pages deploy dist --project-name=voter-match
 ```
+
+### CI (GitHub Actions)
+
+`.github/workflows/deploy.yml` runs on every push to `main` (and via
+`workflow_dispatch`). It applies D1 migrations, deploys the Worker, builds the
+web app, and deploys it to Cloudflare Pages.
+
+One-time setup:
+
+1. **Provision Cloudflare resources** locally and paste the returned IDs into
+   `apps/api/wrangler.toml`:
+   ```bash
+   cd apps/api
+   pnpm dlx wrangler d1 create voter_match
+   pnpm dlx wrangler kv namespace create HASH_INDEX
+   pnpm dlx wrangler kv namespace create HASH_INDEX --preview
+   pnpm dlx wrangler r2 bucket create voter-match-files
+   pnpm dlx wrangler r2 bucket create voter-match-files-preview
+   ```
+2. **Set the JWT secret on the deployed Worker** (after the first deploy):
+   ```bash
+   pnpm dlx wrangler secret put JWT_SECRET
+   ```
+3. **Create the Pages project** (empty is fine — CI uploads builds into it):
+   ```bash
+   pnpm dlx wrangler pages project create voter-match --production-branch=main
+   ```
+4. **Add repo secrets** (Settings → Secrets and variables → Actions → Secrets):
+   - `CLOUDFLARE_API_TOKEN` — scoped to `Account: Workers Scripts Edit`,
+     `Account: D1 Edit`, `Account: Workers KV Storage Edit`,
+     `Account: Workers R2 Storage Edit`, and `Account: Pages Edit`.
+   - `CLOUDFLARE_ACCOUNT_ID` — your account ID (sidebar on the Cloudflare
+     dashboard).
+5. **Add repo variables** (Settings → Secrets and variables → Actions →
+   Variables):
+   - `VITE_API_BASE` — full Worker URL including the `/api` prefix, e.g.
+     `https://voter-match-api.<subdomain>.workers.dev/api`. Leave unset only
+     if the Worker and Pages share an origin (custom domain or a
+     `_redirects` proxy rewrite).
+   - `CF_PAGES_PROJECT` — optional; defaults to `voter-match`.
+
+Cross-origin note: the session cookie is `SameSite=Lax`, so the browser
+will only send it to the Worker when the web app and Worker share the same
+registrable domain (e.g. both on `example.com`), or when `/api/*` is served
+same-origin via a Pages `_redirects` proxy rewrite.
 
 ## Out of scope for v1
 
