@@ -7,6 +7,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATION = readFileSync(path.join(__dirname, "../migrations/0001_initial.sql"), "utf-8");
+const MIGRATION_2 = readFileSync(
+  path.join(__dirname, "../migrations/0002_multi_campaign.sql"),
+  "utf-8",
+);
 const SEED = readFileSync(path.join(__dirname, "../migrations/seed.sql"), "utf-8");
 
 let mf: Miniflare;
@@ -38,7 +42,7 @@ beforeAll(async () => {
 
   // Apply migration + seed directly against the D1 binding.
   const db = await mf.getD1Database("DB");
-  const stripped = [MIGRATION, SEED]
+  const stripped = [MIGRATION, MIGRATION_2, SEED]
     .join("\n")
     .replace(/--[^\n]*\n/g, "\n")
     .replace(/\/\*[\s\S]*?\*\//g, "");

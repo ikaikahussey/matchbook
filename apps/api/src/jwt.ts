@@ -7,6 +7,9 @@
 export interface JwtPayload {
   sub: string; // volunteer or admin subject id
   campaignId: string;
+  // userId is set for volunteer sessions so endpoints can resolve other
+  // memberships of the same person. Admin sessions don't carry it.
+  userId?: string;
   role: "volunteer" | "admin";
   iat: number;
   exp: number;

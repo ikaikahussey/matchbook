@@ -78,6 +78,35 @@ export interface SessionInfo {
   salt: string;
   role: "volunteer" | "admin";
   termsAccepted: boolean;
+  codename?: string | null;
+}
+
+export interface CampaignMembership {
+  volunteerId: string;
+  campaignId: string;
+  campaignName: string;
+  codename: string | null;
+  isCurrent: boolean;
+}
+
+export interface RelationshipEntry {
+  matchId: string;
+  voterId: string;
+  firstName: string | null;
+  lastName: string | null;
+  city: string | null;
+  zip: string | null;
+  district: string | null;
+  relationshipTag: RelationshipTag | null;
+  notes: string | null;
+  updatedAt: number;
+}
+
+export interface CampaignRelationships {
+  campaignId: string;
+  campaignName: string;
+  codename: string | null;
+  relationships: RelationshipEntry[];
 }
 
 export interface AdminStats {
