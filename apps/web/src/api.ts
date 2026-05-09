@@ -1,5 +1,7 @@
 import type {
   AdminStats,
+  CampaignMembership,
+  CampaignRelationships,
   MatchResponse,
   MyListEntry,
   RelationshipTag,
@@ -86,5 +88,23 @@ export const api = {
   },
   adminStats() {
     return req<AdminStats>("/admin/stats");
+  },
+  myCampaigns() {
+    return req<{ campaigns: CampaignMembership[] }>("/me/campaigns");
+  },
+  setCodename(codename: string) {
+    return req<{ ok: boolean; codename: string }>("/me/codename", {
+      method: "POST",
+      body: JSON.stringify({ codename }),
+    });
+  },
+  switchCampaign(campaignId: string) {
+    return req<SessionInfo>("/auth/switch-campaign", {
+      method: "POST",
+      body: JSON.stringify({ campaignId }),
+    });
+  },
+  myRelationships() {
+    return req<{ campaigns: CampaignRelationships[] }>("/me/relationships");
   },
 };

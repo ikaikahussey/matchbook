@@ -3,6 +3,7 @@ import { AdminPage } from "./pages/AdminPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MatchPage } from "./pages/MatchPage";
 import { MyListPage } from "./pages/MyListPage";
+import { RelationshipsPage } from "./pages/RelationshipsPage";
 import { TermsPage } from "./pages/TermsPage";
 import { Shell } from "./components/Shell";
 import { useSession } from "./session";
@@ -49,6 +50,7 @@ export default function App() {
           <>
             <Route path="/match" element={<MatchPage />} />
             <Route path="/my-list" element={<MyListPage />} />
+            <Route path="/relationships" element={<RelationshipsPage />} />
             <Route path="*" element={<Navigate to="/match" replace />} />
           </>
         )}

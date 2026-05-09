@@ -12,10 +12,13 @@ import {
   setSessionCookie,
 } from "./auth.js";
 import {
+  allocateCodename,
   findCampaignByAccessCode,
   findCampaignByAdminCode,
   getCampaign,
+  isValidCodename,
   recordAudit,
+  upsertUserByPhone,
 } from "./db.js";
 import { randomId } from "./id.js";
 import { ingestVoterFile, kvKey } from "./ingest.js";
@@ -51,24 +54,38 @@ app.post("/api/auth/login", async (c) => {
   if (!campaign) return c.json({ error: "invalid access code" }, 401);
   if (!safeEqual(campaign.access_code, code)) return c.json({ error: "invalid access code" }, 401);
 
-  // Upsert volunteer by (campaign, phone).
+  const user = await upsertUserByPhone(c.env, rawPhone);
+
+  // One volunteer membership per (user, campaign). Backfilled rows from
+  // pre-multi-campaign data may already exist with a NULL codename; assign
+  // one on first login through the new code path.
   const existing = await c.env.DB.prepare(
-    "SELECT * FROM volunteers WHERE campaign_id = ? AND phone = ?",
+    "SELECT id, terms_accepted_at, codename FROM volunteers WHERE campaign_id = ? AND user_id = ?",
   )
-    .bind(campaign.id, rawPhone)
-    .first<{ id: string; terms_accepted_at: number | null }>();
+    .bind(campaign.id, user.id)
+    .first<{ id: string; terms_accepted_at: number | null; codename: string | null }>();
 
   let volunteerId: string;
   let termsAccepted = false;
+  let codename: string;
   if (existing) {
     volunteerId = existing.id;
     termsAccepted = existing.terms_accepted_at !== null;
+    if (existing.codename) {
+      codename = existing.codename;
+    } else {
+      codename = await allocateCodename(c.env, campaign.id);
+      await c.env.DB.prepare("UPDATE volunteers SET codename = ? WHERE id = ?")
+        .bind(codename, volunteerId)
+        .run();
+    }
   } else {
     volunteerId = `vol-${randomId(10).toLowerCase()}`;
+    codename = await allocateCodename(c.env, campaign.id);
     await c.env.DB.prepare(
-      "INSERT INTO volunteers (id, campaign_id, phone, created_at) VALUES (?, ?, ?, ?)",
+      "INSERT INTO volunteers (id, campaign_id, user_id, phone, codename, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     )
-      .bind(volunteerId, campaign.id, rawPhone, Date.now())
+      .bind(volunteerId, campaign.id, user.id, rawPhone, codename, Date.now())
       .run();
   }
 
@@ -77,6 +94,7 @@ app.post("/api/auth/login", async (c) => {
     {
       sub: volunteerId,
       campaignId: campaign.id,
+      userId: user.id,
       role: "volunteer",
       iat: now,
       exp: now + sessionTtlSeconds(),
@@ -99,6 +117,7 @@ app.post("/api/auth/login", async (c) => {
     salt: campaign.salt,
     role: "volunteer",
     termsAccepted,
+    codename,
   });
 });
 
@@ -155,11 +174,15 @@ app.get("/api/auth/me", requireSession, async (c) => {
   if (!campaign) return c.json({ error: "campaign not found" }, 404);
 
   let termsAccepted = true;
+  let codename: string | null = null;
   if (s.role === "volunteer") {
-    const v = await c.env.DB.prepare("SELECT terms_accepted_at FROM volunteers WHERE id = ?")
+    const v = await c.env.DB.prepare(
+      "SELECT terms_accepted_at, codename FROM volunteers WHERE id = ?",
+    )
       .bind(s.sub)
-      .first<{ terms_accepted_at: number | null }>();
+      .first<{ terms_accepted_at: number | null; codename: string | null }>();
     termsAccepted = v?.terms_accepted_at != null;
+    codename = v?.codename ?? null;
   }
 
   return c.json({
@@ -169,7 +192,193 @@ app.get("/api/auth/me", requireSession, async (c) => {
     salt: campaign.salt,
     role: s.role,
     termsAccepted,
+    codename,
   });
+});
+
+// -----------------------------------------------------------------------------
+// Multi-campaign account
+// -----------------------------------------------------------------------------
+
+app.get("/api/me/campaigns", requireSession, async (c) => {
+  const s = sessionPayload(c);
+  if (s.role !== "volunteer" || !s.userId) return c.json({ error: "volunteers only" }, 403);
+  const { results } = await c.env.DB.prepare(
+    `SELECT v.id as volunteer_id, v.campaign_id, v.codename, c.name as campaign_name
+     FROM volunteers v JOIN campaigns c ON c.id = v.campaign_id
+     WHERE v.user_id = ?
+     ORDER BY c.name`,
+  )
+    .bind(s.userId)
+    .all<{ volunteer_id: string; campaign_id: string; codename: string | null; campaign_name: string }>();
+  return c.json({
+    campaigns: (results ?? []).map((r) => ({
+      volunteerId: r.volunteer_id,
+      campaignId: r.campaign_id,
+      campaignName: r.campaign_name,
+      codename: r.codename,
+      isCurrent: r.campaign_id === s.campaignId,
+    })),
+  });
+});
+
+app.post("/api/me/codename", requireSession, async (c) => {
+  const s = sessionPayload(c);
+  if (s.role !== "volunteer") return c.json({ error: "volunteers only" }, 403);
+  const body = (await c.req.json<{ codename?: string }>().catch(() => ({}) as { codename?: string }));
+  const codename = (body.codename ?? "").trim().toLowerCase();
+  if (!isValidCodename(codename)) {
+    return c.json({ error: "codename must be of the form word-word from the curated list" }, 400);
+  }
+  // Uniqueness within the campaign.
+  const taken = await c.env.DB.prepare(
+    "SELECT id FROM volunteers WHERE campaign_id = ? AND codename = ? AND id != ?",
+  )
+    .bind(s.campaignId, codename, s.sub)
+    .first<{ id: string }>();
+  if (taken) return c.json({ error: "codename already taken in this campaign" }, 409);
+
+  await c.env.DB.prepare("UPDATE volunteers SET codename = ? WHERE id = ?")
+    .bind(codename, s.sub)
+    .run();
+  await recordAudit(c.env, {
+    id: `aud-${randomId(10).toLowerCase()}`,
+    volunteerId: s.sub,
+    campaignId: s.campaignId,
+    action: "codename_change",
+    metadata: { codename },
+  });
+  return c.json({ ok: true, codename });
+});
+
+app.post("/api/auth/switch-campaign", requireSession, async (c) => {
+  const s = sessionPayload(c);
+  if (s.role !== "volunteer" || !s.userId) return c.json({ error: "volunteers only" }, 403);
+  const body = (await c.req
+    .json<{ campaignId?: string }>()
+    .catch(() => ({}) as { campaignId?: string }));
+  const target = (body.campaignId ?? "").trim();
+  if (!target) return c.json({ error: "campaignId required" }, 400);
+
+  const membership = await c.env.DB.prepare(
+    "SELECT id, terms_accepted_at FROM volunteers WHERE user_id = ? AND campaign_id = ?",
+  )
+    .bind(s.userId, target)
+    .first<{ id: string; terms_accepted_at: number | null }>();
+  if (!membership) return c.json({ error: "not a member of that campaign" }, 403);
+  const campaign = await getCampaign(c.env, target);
+  if (!campaign) return c.json({ error: "campaign not found" }, 404);
+
+  const now = Math.floor(Date.now() / 1000);
+  const token = await signJwt(
+    {
+      sub: membership.id,
+      campaignId: campaign.id,
+      userId: s.userId,
+      role: "volunteer",
+      iat: now,
+      exp: now + sessionTtlSeconds(),
+    },
+    c.env.JWT_SECRET,
+  );
+  setSessionCookie(c, token);
+  await recordAudit(c.env, {
+    id: `aud-${randomId(10).toLowerCase()}`,
+    volunteerId: membership.id,
+    campaignId: campaign.id,
+    action: "campaign_switch",
+  });
+  return c.json({
+    volunteerId: membership.id,
+    campaignId: campaign.id,
+    campaignName: campaign.name,
+    salt: campaign.salt,
+    role: "volunteer",
+    termsAccepted: membership.terms_accepted_at != null,
+  });
+});
+
+interface RelationshipRow {
+  match_id: string;
+  campaign_id: string;
+  campaign_name: string;
+  codename: string | null;
+  voter_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  city: string | null;
+  zip: string | null;
+  district_name: string | null;
+  relationship_tag: string | null;
+  notes: string | null;
+  confirmed: number;
+  updated_at: number;
+}
+
+app.get("/api/me/relationships", requireSession, async (c) => {
+  const s = sessionPayload(c);
+  if (s.role !== "volunteer" || !s.userId) return c.json({ error: "volunteers only" }, 403);
+  const { results } = await c.env.DB.prepare(
+    `SELECT m.id as match_id, v.campaign_id, c.name as campaign_name, v.codename,
+            m.voter_id, vr.first_name, vr.last_name, vr.city, vr.zip,
+            d.name as district_name, m.relationship_tag, m.notes,
+            m.confirmed, m.updated_at
+     FROM volunteers v
+     JOIN campaigns c ON c.id = v.campaign_id
+     JOIN matches m ON m.volunteer_id = v.id
+     JOIN voter_records vr ON vr.voter_id = m.voter_id
+     LEFT JOIN districts d ON d.id = vr.district_id
+     WHERE v.user_id = ? AND m.rejected = 0 AND m.confirmed = 1
+     ORDER BY c.name, m.updated_at DESC`,
+  )
+    .bind(s.userId)
+    .all<RelationshipRow>();
+
+  const grouped = new Map<
+    string,
+    {
+      campaignId: string;
+      campaignName: string;
+      codename: string | null;
+      relationships: Array<{
+        matchId: string;
+        voterId: string;
+        firstName: string | null;
+        lastName: string | null;
+        city: string | null;
+        zip: string | null;
+        district: string | null;
+        relationshipTag: string | null;
+        notes: string | null;
+        updatedAt: number;
+      }>;
+    }
+  >();
+  for (const r of results ?? []) {
+    let g = grouped.get(r.campaign_id);
+    if (!g) {
+      g = {
+        campaignId: r.campaign_id,
+        campaignName: r.campaign_name,
+        codename: r.codename,
+        relationships: [],
+      };
+      grouped.set(r.campaign_id, g);
+    }
+    g.relationships.push({
+      matchId: r.match_id,
+      voterId: r.voter_id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      city: r.city,
+      zip: r.zip,
+      district: r.district_name,
+      relationshipTag: r.relationship_tag,
+      notes: r.notes,
+      updatedAt: r.updated_at,
+    });
+  }
+  return c.json({ campaigns: [...grouped.values()] });
 });
 
 app.post("/api/auth/accept-terms", requireSession, async (c) => {
