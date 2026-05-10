@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Match contacts · Voter Match{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Upload your contacts</h1>
+  <p class="hint">
+    Pick a vCard (<code>.vcf</code>) or contacts CSV (Google / Apple export).
+    Hashing happens in your browser — only the hashes go to the server.
+    Limit: {{ max_hashes }} hashes per request.
+  </p>
+  <input type="file" id="contact-file" accept=".vcf,.vcard,.csv,text/vcard,text/csv">
+  <p id="status" class="hint"></p>
+  <p id="error" class="error" hidden></p>
+</section>
+
+<section id="results" hidden>
+  <h2>Matches</h2>
+  <div id="match-list"></div>
+</section>
+
+<template id="match-tpl">
+  <article class="match">
+    <header>
+      <strong class="who"></strong>
+      <span class="badge confidence"></span>
+      <span class="badge tier"></span>
+    </header>
+    <p class="addr"></p>
+    <p class="meta"></p>
+    <p class="contact-label hint"></p>
+    <div class="actions">
+      <select class="tag">
+        <option value="">(no tag)</option>
+        {% for t in tags %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+      </select>
+      <input class="notes" placeholder="Notes (optional)">
+      <button class="confirm">Confirm</button>
+      <button class="reject">Reject</button>
+      <span class="state hint"></span>
+    </div>
+  </article>
+</template>
+
+<script>
+window.VM_SALT = {{ session.salt | tojson }};
+window.VM_MAX_HASHES = {{ max_hashes }};
+</script>
+<script src="{{ url_for('static', filename='match.js') }}"></script>
+{% endblock %}

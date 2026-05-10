@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Relationships · Voter Match{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Relationships across campaigns</h1>
+  {% if not groups %}
+    <p class="hint">No confirmed relationships yet. Confirm matches on the Match page.</p>
+  {% endif %}
+  {% for g in groups %}
+    <h2>{{ g.campaign_name }} <span class="hint">· {{ g.codename or 'no codename' }}</span></h2>
+    <table>
+      <thead><tr><th>Name</th><th>Precinct</th><th>City</th><th>Tag</th><th>Notes</th></tr></thead>
+      <tbody>
+        {% for r in g['items'] %}
+          <tr>
+            <td>{{ r.first_name }} {{ r.last_name }}</td>
+            <td>{{ r.district_name or '' }}</td>
+            <td>{{ r.city or '' }} {{ r.zip or '' }}</td>
+            <td>{{ r.relationship_tag or '' }}</td>
+            <td>{{ r.notes or '' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+
+  <h2>Change codename</h2>
+  <form method="post" action="{{ url_for('change_codename') }}" class="filters">
+    <label>New codename (e.g. <code>azure-falcon</code>)
+      <input name="codename" pattern="[a-z]+-[a-z]+" required>
+    </label>
+    <button type="submit">Update</button>
+  </form>
+</section>
+{% endblock %}

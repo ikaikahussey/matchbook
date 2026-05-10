@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Terms · Voter Match{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Before you start</h1>
+  <ol>
+    <li>Your contacts are hashed in your browser. Raw names, phones, and addresses
+        never leave this device.</li>
+    <li>Only confirmed matches are visible to you on My List. There is no way to
+        browse the campaign's voter file.</li>
+    <li>Match searches and confirmations are written to an audit log.</li>
+    <li>Don't share access codes or your codename outside this campaign.</li>
+  </ol>
+  <form method="post">
+    <button type="submit">I understand — continue</button>
+  </form>
+</section>
+{% endblock %}

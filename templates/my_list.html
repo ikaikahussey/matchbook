@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}My list · Voter Match{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>My list</h1>
+  <form method="get" class="filters">
+    <label>Precinct
+      <select name="precinct">
+        <option value="">All</option>
+        {% for d in districts %}
+          <option value="{{ d }}" {% if d == filter_precinct %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Tag
+      <select name="tag">
+        <option value="">All</option>
+        {% for t in tags %}
+          <option value="{{ t }}" {% if t == filter_tag %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="checkbox">
+      <input type="checkbox" name="pending" value="1" {% if include_pending %}checked{% endif %}>
+      Include pending
+    </label>
+    <button type="submit">Filter</button>
+    <a class="btn" href="{{ url_for('export_csv', precinct=filter_precinct, tag=filter_tag) }}">Export CSV</a>
+    <a class="btn" href="{{ url_for('export_pdf', precinct=filter_precinct, tag=filter_tag) }}">Export PDF</a>
+  </form>
+
+  {% if not rows %}
+    <p class="hint">No matches yet.</p>
+  {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Address</th><th>Precinct</th>
+          <th>Party</th><th>Tag</th><th>Notes</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{{ r.first_name }} {{ r.last_name }}</td>
+            <td>{{ r.address or '' }}{% if r.city %}, {{ r.city }}{% endif %} {{ r.zip or '' }}</td>
+            <td>{{ r.district_name or '' }}</td>
+            <td>{{ r.party or '' }}</td>
+            <td>{{ r.relationship_tag or '' }}</td>
+            <td>{{ r.notes or '' }}</td>
+            <td>{% if r.confirmed %}confirmed{% else %}pending{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>
+{% endblock %}

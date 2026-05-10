@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Voter Match{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('index') }}">Voter Match</a>
+    {% if vm_session %}
+      <nav>
+        {% if vm_session.role == 'volunteer' %}
+          <a href="{{ url_for('match_page') }}">Match</a>
+          <a href="{{ url_for('my_list_page') }}">My list</a>
+          <a href="{{ url_for('relationships_page') }}">Relationships</a>
+        {% endif %}
+        {% if vm_session.role == 'admin' %}
+          <a href="{{ url_for('admin_page') }}">Admin</a>
+        {% endif %}
+        <span class="who">
+          {{ vm_session.campaign_name }}
+          {% if vm_session.codename %} · {{ vm_session.codename }}{% endif %}
+        </span>
+        <form method="post" action="{{ url_for('logout') }}" class="inline">
+          <button type="submit" class="link">Sign out</button>
+        </form>
+      </nav>
+    {% endif %}
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
