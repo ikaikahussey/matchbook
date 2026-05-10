@@ -1,4 +1,4 @@
-name = "voter-match-api"
+name = "matchbook"
 main = "src/index.ts"
 compatibility_date = "2024-06-20"
 compatibility_flags = ["nodejs_compat"]
@@ -7,15 +7,15 @@ compatibility_flags = ["nodejs_compat"]
 # in `wrangler secret put` for production. See .dev.vars.example.
 
 [[d1_databases]]
-binding = "DB"
+binding = "voter_match"
 database_name = "voter_match"
-database_id = "REPLACE_WITH_YOUR_D1_ID"
+database_id = "f691653e-d804-47a0-8378-aa84088e5a13"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "HASH_INDEX"
-id = "REPLACE_WITH_YOUR_KV_ID"
-preview_id = "REPLACE_WITH_YOUR_KV_PREVIEW_ID"
+id = "f18d5fcdc3aa4d159a951d138761d93e"
+preview_id = "141ba668d519483097dec95819a90c8c"
 
 [[r2_buckets]]
 binding = "VOTER_FILES"
