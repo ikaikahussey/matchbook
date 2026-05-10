@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Admin · Voter Match{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Admin · {{ session.campaign_name }}</h1>
+  <p class="hint">Voter file version: {{ voter_file_version or 'none uploaded' }}</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <h2>Upload voter file (CSV)</h2>
+  <form method="post" action="{{ url_for('admin_upload_voter_file') }}" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".csv,text/csv" required>
+    <button type="submit">Upload &amp; ingest</button>
+  </form>
+  <p class="hint">
+    Required columns:
+    <code>voter_id, first_name, last_name, address, city, zip, phone, party, district, last_voted</code>
+  </p>
+
+  {% if ingest %}
+    <p class="ok">
+      Ingested {{ ingest.inserted }} rows · version {{ ingest.version }}.
+      Districts: {{ ingest.districts | join(', ') }}
+    </p>
+  {% endif %}
+
+  <h2>Stats</h2>
+  <p>Volunteers enrolled: <strong>{{ stats.volunteers_enrolled }}</strong></p>
+  <p>Unique voters with a confirmed relationship: <strong>{{ stats.unique_voters }}</strong></p>
+
+  {% if stats.coverage %}
+    <table>
+      <thead><tr><th>Precinct</th><th>Voters</th><th>Covered</th><th>%</th></tr></thead>
+      <tbody>
+        {% for c in stats.coverage %}
+          <tr>
+            <td>{{ c.district }}</td>
+            <td>{{ c.total }}</td>
+            <td>{{ c.covered }}</td>
+            <td>{{ c.percent }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>
+{% endblock %}
