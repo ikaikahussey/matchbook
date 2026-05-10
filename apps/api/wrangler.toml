@@ -25,3 +25,7 @@ preview_bucket_name = "voter-match-files-preview"
 [vars]
 COOKIE_NAME = "vm_session"
 COOKIE_DOMAIN = ""
+
+[observability.logs]
+enabled = true
+invocation_logs = true
