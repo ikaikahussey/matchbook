@@ -11,7 +11,7 @@ binding = "ASSETS"
 # in `wrangler secret put` for production. See .dev.vars.example.
 
 [[d1_databases]]
-binding = "voter_match"
+binding = "DB"
 database_name = "voter_match"
 database_id = "f691653e-d804-47a0-8378-aa84088e5a13"
 migrations_dir = "migrations"
