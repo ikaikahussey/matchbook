@@ -5,7 +5,7 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "build": "turbo run build",
-    "deploy": "pnpm --filter @voter-match/api exec wrangler deploy",
+    "deploy": "pnpm --filter @voter-match/web build && pnpm --filter @voter-match/api exec wrangler deploy",
     "dev": "turbo run dev",
     "test": "turbo run test",
     "lint": "turbo run lint",

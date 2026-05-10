@@ -38,6 +38,18 @@ app.use(
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
+// SPA fallback: any non-API request that the Worker reaches (i.e. the static
+// assets layer didn't find a matching file) should return index.html so
+// client-side routing can take over.
+app.notFound(async (c) => {
+  if (c.req.path.startsWith("/api/")) {
+    return c.json({ error: "not found" }, 404);
+  }
+  const url = new URL(c.req.url);
+  url.pathname = "/index.html";
+  return c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw));
+});
+
 // -----------------------------------------------------------------------------
 // Auth
 // -----------------------------------------------------------------------------
