@@ -12,8 +12,9 @@
     <button type="submit">Upload &amp; ingest</button>
   </form>
   <p class="hint">
-    Required columns:
-    <code>voter_id, first_name, last_name, address, city, zip, phone, party, district, last_voted</code>
+    Required columns: <code>first_name, last_name, phone</code>.
+    Optional columns: <code>voter_id, address, city, zip, party, district, last_voted</code>.
+    Maximum 20,000 records per upload.
   </p>
 
   {% if ingest %}
