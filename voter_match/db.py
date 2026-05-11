@@ -166,10 +166,12 @@ def allocate_codename(conn, campaign_id):
 
 # --- Voter file ingest --------------------------------------------------------
 
-REQUIRED_COLUMNS = (
+REQUIRED_COLUMNS = ("first_name", "last_name", "phone")
+KNOWN_COLUMNS = (
     "voter_id", "first_name", "last_name", "address", "city",
     "zip", "phone", "party", "district", "last_voted",
 )
+MAX_VOTER_ROWS = 20000
 
 
 def parse_voter_csv(text):
@@ -183,11 +185,16 @@ def parse_voter_csv(text):
     # rebuild reader with normalized headers
     reader = _csv.DictReader(StringIO(text))
     out = []
-    for raw in reader:
+    for idx, raw in enumerate(reader):
         row = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
-        if not row.get("voter_id"):
+        if not (row.get("first_name") and row.get("last_name") and row.get("phone")):
             continue
-        out.append({c: row.get(c, "") for c in REQUIRED_COLUMNS})
+        record = {c: row.get(c, "") for c in KNOWN_COLUMNS}
+        if not record["voter_id"]:
+            record["voter_id"] = f"row-{idx + 1}"
+        out.append(record)
+        if len(out) > MAX_VOTER_ROWS:
+            raise ValueError(f"Voter file exceeds maximum of {MAX_VOTER_ROWS} records")
     return out
 
 
